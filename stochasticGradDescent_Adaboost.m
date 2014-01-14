@@ -62,6 +62,7 @@ lambda = 0.02; % penalty term
 alpha = 0.005;  % learning rate
 numPasses = 10;
 
+
 Bu = zeros(nusers,1);
 Bi = zeros(nitems,1);
 
