@@ -37,8 +37,8 @@ end
 
 numTrain = length(trainY);
 trainY(:,4) = ones(numTrain,1)*(1/numTrain);
-originWeight = 1/numTrain;
-originWeight
+originWeight = 1/numTrain
+
 trainSet = sparse(trainY(:,1),trainY(:,2),trainY(:,3));
 weightSet = sparse(trainY(:,1),trainY(:,2),trainY(:,4));
 testSet = sparse(testY(:,1),testY(:,2),testY(:,3));
@@ -70,122 +70,148 @@ numPasses = 100;
 Bu = zeros(nusers,1);
 Bi = zeros(nitems,1);
 
-threshold = 0.9; % if err large than this value,regard it as -1,else 1
-nIterations = 10;
 % record the weight after each iteration
-weightArray = zeros(nIterations,1);
+weightArray = zeros(numPasses,1);
 finalQ = zeros(nitems,k);
 finalP = zeros(nusers,k);
 finalBu = zeros(nusers,1);
 finalBi = zeros(nitems,1);
 
-for iteration = 1:nIterations,
+for pass=1:numPasses,
+    tempLength = length(row);
+    prm = randperm(tempLength);
+    errRate = 0;
+    weightRight = 1;
+    weightWrong = 1;
+    trainWeight = 0; % weight in training process
     
-    iteration
-    for pass=1:numPasses,
-        tempLength = length(row);
-        prm = randperm(tempLength);
-        errRate = 0;
-        
-        for i=1:tempLength
-            user = row(prm(i));
-            item = col(prm(i));
-            err = rating(prm(i)) - mu - P(user,:)*Q(item,:)' -Bu(user) -Bi(item);
-            
-            trainWeight = weight(prm(i))/originWeight;
- 
-            P(user,:) = P(user,:) + trainWeight*alpha*(err*Q(item,:) - lambda*P(user,:));
-            Q(item,:) = Q(item,:) + trainWeight*alpha*(err*P(user,:) - lambda*Q(item,:));
-            Bu(user) = Bu(user) + trainWeight*alpha*(err-lambda*Bu(user));
-            Bi(item) = Bi(item) + trainWeight*alpha*(err-lambda*Bi(item));
-        end
-        
-        errors=0;
-        for i=1:tempLength
-            user = row(i);
-            item = col(i);
-            predictRating = mu + P(user,:)*Q(item,:)' + Bu(user) + Bi(item);
-            err = rating(i) - predictRating;
-            errors = errors + err^2;
-        end
-        fprintf('Training rmse pass %d: \t %e\n', pass, sqrt(errors/tempLength));
-        
-        tempLength = length(colT);
-        errors=0;
-        for i=1:tempLength
-            user = rowT(i);
-            item = colT(i);
-            predictRating = mu + P(user,:)*Q(item,:)' + Bu(user) + Bi(item);
-            err = ratingT(i) - predictRating;
-            errors = errors + err^2;
-        end
-        
-        if(testRMSE > sqrt(errors/tempLength) )
-            testRMSE = sqrt(errors/tempLength);
-            %fprintf('!!!!Test rmse:%e\n',testRMSE);
+    for i=1:tempLength
+        user = row(prm(i));
+        item = col(prm(i));
+        err = rating(prm(i)) - mu - P(user,:)*Q(item,:)' -Bu(user) -Bi(item);
+        if(err > 0.7 || err < -0.7)
+            %trainWeight = weightWrong/weightRight;
+            trainWeight = 1;
         else
-            break;
+            %trainWeight = weightRight/weightWrong;
+            trainWeight = 1;
         end
-        fprintf('Test rmse pass %d: \t %e\n', pass,sqrt(errors/tempLength));
-        
+        P(user,:) = P(user,:) + alpha*(trainWeight*err*Q(item,:) - lambda*P(user,:));
+        Q(item,:) = Q(item,:) + alpha*(trainWeight*err*P(user,:) - lambda*Q(item,:));
+        Bu(user) = Bu(user) + alpha*(trainWeight*err-lambda*Bu(user));
+        Bi(item) = Bi(item) + alpha*(trainWeight*err-lambda*Bi(item));
     end
     
-    %% calculate the error and update
-    tempLength = length(row);
     for i=1:tempLength
         user = row(i);
         item = col(i);
         predictRating = mu + P(user,:)*Q(item,:)' + Bu(user) + Bi(item);
         err = rating(i) - predictRating;
         % fprintf('err:%d \t %e\n',i,err);
-        if(err > threshold || err < -threshold)
+        if(err > 0.7 || err < -0.7)
             errRate = errRate + weight(i);
             %  fprintf('err:%d \t %e\n',i,err);
         end
     end
     
-    errRate
-    if(errRate > 0.5)
-        break;
-    end
-    
-    weightRate = (1/2)*log((1-errRate)/errRate) ; % the weight of this trainning iteration
-    weightRate
-    weightArray(iteration) = weightRate;
-    %weightArray
-    
-    weightRight = exp(-weightRate);
-    weightWrong = exp(weightRate);
-    
-    %%  Normalization
-    tempLength = length(row);
+
+    errors=0;
     for i=1:tempLength
         user = row(i);
         item = col(i);
         predictRating = mu + P(user,:)*Q(item,:)' + Bu(user) + Bi(item);
         err = rating(i) - predictRating;
-  
-        if(err > threshold || err < -threshold)
-            weight(i) = weight(i) * weightWrong;
-%             fprintf('Wrong: \t %e\n',weight(i));
+        errors = errors + err^2;
+    end
+    fprintf('Training rmse pass %d: \t %e\n', pass, sqrt(errors/tempLength));
+    
+    tempLength = length(colT);
+    errors=0;
+    for i=1:tempLength
+        user = rowT(i);
+        item = colT(i);
+        predictRating = mu + P(user,:)*Q(item,:)' + Bu(user) + Bi(item);
+        err = ratingT(i) - predictRating;
+        errors = errors + err^2;
+    end
+    
+    if(testRMSE > sqrt(errors/tempLength) )
+        testRMSE = sqrt(errors/tempLength);
+        fprintf('!!!!Test rmse:%e\n',testRMSE);
+    else
+        break;
+    end
+    fprintf('Test rmse pass %d: \t %e\n', pass,sqrt(errors/tempLength));
+    
+        errRate
+    if(errRate > 0.5)
+        break;
+    end
+    
+    weightRate = (1/2)*log((1-errRate)/errRate) ; % the weight of this trainning iteration
+    weightRate;
+    weightArray(pass) = weightRate;
+    %weightArray
+    
+    weightRight = exp(-weightRate);
+    weightWrong = exp(weightRate);
+    
+    temp = (weightRight*(1 - errRate) + weightWrong*errRate)* numTrain;
+    weightRight = weightRight/temp;
+    weightWrong = weightWrong/temp;
+    
+    tempLength = length(col);
+    for i=1:tempLength
+        user = row(i);
+        item = col(i);
+        predictRating = mu + P(user,:)*Q(item,:)' + Bu(user) + Bi(item);
+        err = rating(i) - predictRating;
+        if(err > 0.7 || err < -0.7)
+            weight(i) = weightWrong;
+            %  fprintf('err:%d \t %e\n',i,err);
         else
-            weight(i) = weight(i) * weightRight;
-%            fprintf('Right: \t %e\n',weight(i));
+            weight(i) = weightRight;
         end
     end
-    weight = weight/sum(weight);
-%     weight
-    finalQ = finalQ + weightArray(iteration)* Q;
-    finalP = finalP + weightArray(iteration)* P;
-    finalBu = finalBu + weightArray(iteration)* Bu;
-    finalBi = finalBi + weightArray(iteration)* Bi;
     
-    P = rand(nusers,k)/10;
-    Q = rand(nitems,k)/10;
-    Bu = zeros(nusers,1);
-    Bi = zeros(nitems,1);
-    testRMSE = 2;
+%     weight
+    
+    finalQ = finalQ + weightArray(pass)* Q;
+    finalP = finalP + weightArray(pass)* P;
+    finalBu = finalBu + weightArray(pass)* Bu;
+    finalBi = finalBi + weightArray(pass)* Bi;
+
+    % every iteration,caculate the result of test set and training set
+    sumWeight = sum(weightArray);
+    tempQ = finalQ/sumWeight;
+    tempP = finalP/sumWeight;
+    tempBu = finalBu/sumWeight;
+    tempBi = finalBi/sumWeight;
+ 
+    errors=0;
+    tempLength = length(col);
+    for i=1:tempLength
+        user = row(i);
+        item = col(i);
+        predictRating = mu + tempP(user,:)*tempQ(item,:)' + tempBu(user) + tempBi(item);
+        err = rating(i) - predictRating;
+        errors = errors + err^2;
+    end
+    fprintf('Adaboost Training rmse  %d: \t %e\n', pass,sqrt(errors/tempLength));
+    
+    tempLength = length(colT);
+    errors=0;
+    for i=1:tempLength
+        user = rowT(i);
+        item = colT(i);
+        predictRating = mu + tempP(user,:)*tempQ(item,:)' + tempBu(user) + tempBi(item);
+        err = ratingT(i) - predictRating;
+        errors = errors + err^2;
+    end
+    fprintf('Adaboost Test rmse  %d: \t %e\n\n',pass,sqrt(errors/tempLength));
+    
 end
+
 %% Get the final result
 sumWeight = sum(weightArray);
 finalQ = finalQ/sumWeight;
@@ -214,5 +240,11 @@ for i=1:tempLength
     errors = errors + err^2;
 end
 fprintf('Adaboost Test rmse: \t %e\n',sqrt(errors/tempLength));
+
+
+
+
+
+
 
 
