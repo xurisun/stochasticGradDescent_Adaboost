@@ -1,7 +1,7 @@
 function stochasticGradDescent_Adaboost
- %{
-% Y = load('20data.dat');% 225084
-Y = load('u.data');% 225084
+%{
+Y = load('20data.dat');% 225084
+%Y = load('test1.dat');% 225084
 p = randperm(length(Y));
 Y(:,1) = Y(p,1);
 Y(:,2) = Y(p,2);
@@ -48,22 +48,17 @@ finalBi = zeros(nitems,1);
 [row,col,rating] = find(trainSet);
 [row,col,weight] = find(weightSet);
 [rowT,colT,ratingT] = find(testSet);
- %}
-
+%}
 load test10W
 % load test
-originweight =  ones(numTrain,1)*(1/numTrain);
-finalTrainingRating = rating*0;
-finalTestRating =  ratingT*0;
-tempPredictTrainingRating = rating*0;
-tempPredictTestRating = ratingT * 0;
-% tempQ = zeros(nitems,k);
-% tempP = zeros(nusers,k);
-% tempBu = zeros(nusers,1);
-% tempBi =zeros(nitems,1);
 
-threshold = 0.2; % if err large than this value,regard it as -1,else 1
-nIterations =5;
+tempQ = zeros(nitems,k);
+tempP = zeros(nusers,k);
+tempBu = zeros(nusers,1);
+tempBi =zeros(nitems,1);
+
+threshold = 0.25; % if err large than this value,regard it as -1,else 1
+nIterations = 10;
 testRMSE = 2;
 % record the weight after each iteration
 weightArray = zeros(nIterations,1);
@@ -71,10 +66,9 @@ weightArray = zeros(nIterations,1);
 lambda = 0.02; % penalty term
 alpha = 0.005;  % learning rate
 numPasses = 100;
-
+count = 0;
 for iteration = 1:nIterations,
     iteration
-    count = 0;
     %     tempLength = length(row);
     %     errRate = 0;
     %     A = 0;
@@ -114,7 +108,6 @@ for iteration = 1:nIterations,
             user = row(i);
             item = col(i);
             predictRating = u + P(user,:)*Q(item,:)' + Bu(user) + Bi(item);
-            tempPredictTrainingRating(i) = predictRating;
             err = rating(i) - predictRating;
             errors = errors + err^2;
         end
@@ -127,7 +120,6 @@ for iteration = 1:nIterations,
             user = rowT(i);
             item = colT(i);
             predictRating = u + P(user,:)*Q(item,:)' + Bu(user) + Bi(item);
-            tempPredictTestRating(i) = predictRating;
             err = ratingT(i) - predictRating;
             errors = errors + err^2;
         end
@@ -135,25 +127,25 @@ for iteration = 1:nIterations,
         if(testRMSE > sqrt(errors/tempLength) )
             testRMSE = sqrt(errors/tempLength);
             %fprintf('!!!!Test rmse:%e\n',testRMSE);
-%             tempQ = Q;
-%             tempP = P;
-%             tempBu = Bu;
-%             tempBi = Bi;
-%             count = 0;
+                        tempQ = Q;
+                        tempP = P;
+                        tempBu = Bu;
+                        tempBi = Bi;
+                        count1 = 0;
         else
-%             count = count + 1;
-%             if(count > 10)
-%                 break;
-%             end
-            break;
+                        count1 = count1 + 1;
+                        if(count1 > 10)
+                            break;
+                        end
+%             break;
         end
         fprintf('Test rmse pass %d: \t %e\n', pass,sqrt(errors/tempLength));
     end
-    
-%     Q = tempQ;
-%     P = tempP;
-%     Bu = tempBu;
-%     Bi = tempBi;
+    %
+        Q = tempQ;
+        P = tempP;
+        Bu = tempBu;
+        Bi = tempBi;
     
     %% calculate the error and update
     tempLength = length(row);
@@ -164,30 +156,32 @@ for iteration = 1:nIterations,
         err = abs(rating(i) - predictRating);
         % fprintf('err:%d \t %e\n',i,err);
         if(err/rating(i) > threshold)
-            count = count + 1;
+             count = count + 1;
             errRate = errRate + weight(i);
             %  fprintf('err:%d \t %e\n',i,err);
         end
     end
     count
-%         errRate = errRate*errRate;
-%  errRate = sqrt(errRate);
+    %         errRate = errRate*errRate;
+%       errRate = sqrt(errRate);
     errRate
-        if(errRate > 0.5)
-            break;
-        end
+%     if(errRate > 0.5)
+%         weight =  ones(tempLength,1)*(1/numTrain);
+%         continue;
+%         break;
+%     end
     
-        weightRate = 0.5*log((1-errRate)/errRate) ; % the weight of this trainning iteration
-%     weightRate = log10(1/errRate); % another way to calculate weight of
+%     weightRate = 0.5*log((1-errRate)/errRate) ; % the weight of this trainning iteration
+        weightRate = log(1/errRate); % another way to calculate weight of
     %     temp traning iteration
     weightRate
     weightArray(iteration) = weightRate;
     %weightArray
     
-%         weightRight = exp(-weightRate);
-%         weightWrong = exp(weightRate);
-%         weightRight
-%         weightWrong
+%     weightRight = exp(-weightRate);
+%     weightWrong = exp(weightRate);
+%     weightRight
+%     weightWrong
     %%  Normalization
     tempLength = length(row);
     for i=1:tempLength
@@ -197,28 +191,21 @@ for iteration = 1:nIterations,
         err = abs(rating(i) - predictRating);
         % fprintf('err:%d \t %e\n',i,err);
         if(err/rating(i) > threshold)
-%                         weight(i) = weight(i) * weightWrong;
-            weight(i) = weight(i) * 1;
+%             weight(i) = weight(i) * weightWrong;
+                        weight(i) = weight(i) * 1;
             %             fprintf('Wrong: \t %e\n',weight(i));
         else
-%                         weight(i) = weight(i) * weightRight;
-            weight(i) = weight(i) * sqrt(errRate);
+%             weight(i) = weight(i) * weightRight;
+                        weight(i) = weight(i) * sqrt(errRate);
             %            fprintf('Right: \t %e\n',weight(i));
         end
     end
-    tempweight = weight/sum(weight);
     weight = weight/sum(weight);
-%     tempweight - originweight
-    sum(tempweight)
-    sum(tempweight - originweight)
     %     weight
     finalQ = finalQ + weightArray(iteration)* Q;
     finalP = finalP + weightArray(iteration)* P;
     finalBu = finalBu + weightArray(iteration)* Bu;
     finalBi = finalBi + weightArray(iteration)* Bi;
-    
-    finalTrainingRating = finalTrainingRating + weightArray(iteration)* tempPredictTrainingRating;
-    finalTestRating = finalTestRating + weightArray(iteration) * tempPredictTestRating;
     
     P = rand(nusers,k)/10;
     Q = rand(nitems,k)/10;
@@ -229,13 +216,11 @@ for iteration = 1:nIterations,
 end
 %% Get the final result
 sumWeight = sum(weightArray);
-% finalQ = finalQ/sumWeight;
-% finalP = finalP/sumWeight;
-% finalBu = finalBu/sumWeight;
-% finalBi = finalBi/sumWeight;
-finalTrainingRating = finalTrainingRating/sumWeight;
-finalTestRating = finalTestRating/sumWeight;
-%{
+finalQ = finalQ/sumWeight;
+finalP = finalP/sumWeight;
+finalBu = finalBu/sumWeight;
+finalBi = finalBi/sumWeight;
+
 errors=0;
 tempLength = length(col);
 for i=1:tempLength
@@ -257,22 +242,5 @@ for i=1:tempLength
     errors = errors + err^2;
 end
 fprintf('Adaboost Test rmse: \t %e\n',sqrt(errors/tempLength));
-%}
-errors=0;
-tempLength = length(col);
-for i=1:tempLength
-    err = rating(i) - finalTrainingRating(i);
-    errors = errors + err^2;
-end
-fprintf('Adaboost Training rmse: \t %e\n', sqrt(errors/tempLength));
-
-tempLength = length(colT);
-errors=0;
-for i=1:tempLength
-    err = ratingT(i) - finalTestRating(i);
-    errors = errors + err^2;
-end
-fprintf('Adaboost Test rmse: \t %e\n',sqrt(errors/tempLength));
-
 
 
